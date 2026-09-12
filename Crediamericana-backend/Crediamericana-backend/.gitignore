@@ -1,0 +1,12 @@
+﻿# Configuración privada
+backend/appsettings.Development.json
+appsettings.Development.json
+
+# Compilación de .NET
+bin/
+obj/
+.vs/
+
+# Variables de entorno
+.env
+.env.*

@@ -1,0 +1,6 @@
+@Crediamericana_backend_HostAddress = http://localhost:5090
+
+GET {{Crediamericana_backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
