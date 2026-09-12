@@ -1,0 +1,8 @@
+bin/
+obj/
+.*s/
+.git/
+.gitignore
+appsettings.De*elopment.json
+Dockerfile*
+README.m*
