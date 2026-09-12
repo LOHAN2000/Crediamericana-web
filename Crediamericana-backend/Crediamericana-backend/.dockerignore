@@ -1,8 +1,8 @@
 bin/
 obj/
-.*s/
+.vs/
 .git/
 .gitignore
-appsettings.De*elopment.json
+appsettings.Development.json
 Dockerfile*
-README.m*
+README.md
