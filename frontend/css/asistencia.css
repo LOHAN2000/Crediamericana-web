@@ -320,3 +320,37 @@
     flex-direction: column-reverse;
   }
 }
+.status.open {
+    color: #126548;
+    background: #eaf8f2;
+}
+
+.status.completed {
+    color: #4b5563;
+    background: #f0f1f2;
+}
+
+.notice.success {
+    color: #116044;
+    border-color: #a9ddcb;
+    background: #edf9f5;
+}
+
+.notice.error {
+    color: #8d2028;
+    border-color: #f0bdc3;
+    background: #fff0f2;
+}
+
+.notice.info {
+    color: #475569;
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+.open-text {
+    color: var(--color-success);
+}
+
+.completed-text {
+    color: #4b5563;
+}

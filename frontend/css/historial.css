@@ -280,3 +280,122 @@
     min-height: 105px;
   }
 }
+.history-user-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.history-avatar {
+    display: grid;
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: 11px;
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+    font-weight: 900;
+}
+
+.history-user-cell strong,
+.history-user-cell small {
+    display: block;
+}
+
+.history-user-cell small {
+    margin-top: 3px;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+}
+
+.record-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.record-status::before {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    content: "";
+}
+
+.record-status.completed {
+    color: #126548;
+    background: #eaf8f2;
+}
+
+.record-status.open {
+    color: #8b570d;
+    background: #fff8e9;
+}
+
+.record-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.record-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+    margin-top: 14px;
+    padding-top: 13px;
+    border-top: 1px solid var(--color-border);
+}
+
+.record-card-grid div {
+    padding: 9px;
+    border-radius: 9px;
+    background: #fafafa;
+}
+
+.record-card-grid span,
+.record-card-grid strong {
+    display: block;
+}
+
+.record-card-grid span {
+    color: var(--color-text-muted);
+    font-size: 0.67rem;
+}
+
+.record-card-grid strong {
+    margin-top: 4px;
+    font-size: 0.76rem;
+}
+
+.history-message {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.history-message.error {
+    color: #8d2028;
+    border-color: #f0bdc3;
+    background: #fff0f2;
+}
+
+@media (max-width: 480px) {
+    .record-card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .record-card-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
