@@ -727,3 +727,37 @@
         display: none;
     }
 }
+.summary-grid.admin-summary-grid,
+.summary-grid.worker-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+#workerAttendanceStatus {
+    font-size: 1.05rem;
+}
+
+.pending-value {
+    color: var(--color-warning);
+}
+
+.open-value {
+    color: var(--color-success);
+}
+
+.completed-value {
+    color: #4b5563;
+}
+
+@media (max-width: 1250px) {
+    .summary-grid.admin-summary-grid,
+    .summary-grid.worker-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 920px) {
+    .summary-grid.admin-summary-grid,
+    .summary-grid.worker-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}

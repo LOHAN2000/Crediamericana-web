@@ -1,25 +1,26 @@
+const PERU_TIME_ZONE = "America/Lima";
+let dashboardUser = null;
+
 document.addEventListener("DOMContentLoaded", async () => {
-    if (!requireAuthentication()) {
-        return;
-    }
+    if (!requireAuthentication()) return;
 
-    const user = getStoredUser();
-
-    if (!user) {
+    dashboardUser = getStoredUser();
+    if (!dashboardUser) {
         logout();
         return;
     }
 
-    fillUserInformation(user);
-    configureRoleVisibility(user.role);
+    fillUserInformation(dashboardUser);
+    configureRoleVisibility(dashboardUser.role);
     configureNavigation();
     configureProfileMenu();
     configureLogoutButtons();
+    configureDashboardCards(dashboardUser.role);
     startClock();
 
     await Promise.all([
         verifySystemStatus(),
-        loadUserCount(user.role)
+        loadDashboardData(dashboardUser.role)
     ]);
 });
 
@@ -38,26 +39,172 @@ function fillUserInformation(user) {
     setText("welcomeTitle", `Hola, ${firstName}`);
     setText("sidebarAvatar", initial);
     setText("topbarAvatar", initial);
+
+    const welcomeText = document.querySelector(".welcome-copy p");
+    if (welcomeText) {
+        welcomeText.textContent = user.role === "Admin"
+            ? "Supervisa las cuentas del personal y consulta el estado de las asistencias registradas hoy."
+            : "Consulta el estado de tu jornada, registra tu asistencia y revisa tu historial personal.";
+    }
 }
 
 function configureRoleVisibility(role) {
-    if (role === "Admin") {
-        return;
-    }
+    if (role === "Admin") return;
 
     document.querySelectorAll(".admin-only").forEach(element => {
         element.classList.add("hidden");
     });
 }
 
+function configureDashboardCards(role) {
+    const grid = document.querySelector(".summary-grid");
+    const cards = grid ? [...grid.querySelectorAll(".summary-card")] : [];
+    if (!grid || cards.length < 3) return;
+
+    if (role === "Admin") {
+        setCardContent(cards[0], "♟", "red", "Usuarios registrados", "registeredUsersCount", "--", "Cuentas en el sistema");
+        setCardContent(cards[1], "✓", "green", "Asistencias de hoy", "todayAttendancesCount", "--", "Entradas registradas");
+        setCardContent(cards[2], "◷", "gray", "Jornadas pendientes", "openAttendancesCount", "--", "Sin hora de salida");
+
+        const timeCard = document.createElement("article");
+        timeCard.className = "summary-card dashboard-time-card";
+        timeCard.innerHTML = `
+            <span class="summary-icon gray" aria-hidden="true">◷</span>
+            <div>
+                <p>Hora actual</p>
+                <strong id="currentTime">--:--:--</strong>
+                <span class="summary-detail">Hora de Perú</span>
+            </div>
+        `;
+        grid.appendChild(timeCard);
+        grid.classList.add("admin-summary-grid");
+        return;
+    }
+
+    setCardContent(cards[0], "✓", "red", "Estado de la jornada", "workerAttendanceStatus", "Consultando...", "Registro de hoy");
+    setCardContent(cards[1], "→", "green", "Hora de entrada", "workerEntryTime", "--:--:--", "Inicio de jornada");
+    setCardContent(cards[2], "←", "gray", "Hora de salida", "workerExitTime", "--:--:--", "Fin de jornada");
+
+    const timeCard = document.createElement("article");
+    timeCard.className = "summary-card dashboard-time-card";
+    timeCard.innerHTML = `
+        <span class="summary-icon gray" aria-hidden="true">◷</span>
+        <div>
+            <p>Hora actual</p>
+            <strong id="currentTime">--:--:--</strong>
+            <span class="summary-detail">Hora de Perú</span>
+        </div>
+    `;
+    grid.appendChild(timeCard);
+    grid.classList.add("worker-summary-grid");
+}
+
+function setCardContent(card, icon, iconClass, label, valueId, value, detail) {
+    card.innerHTML = `
+        <span class="summary-icon ${iconClass}" aria-hidden="true">${icon}</span>
+        <div>
+            <p>${label}</p>
+            <strong id="${valueId}">${value}</strong>
+            <span class="summary-detail">${detail}</span>
+        </div>
+    `;
+}
+
+async function loadDashboardData(role) {
+    if (role === "Admin") {
+        await Promise.all([
+            loadUserCount(),
+            loadAdminAttendanceSummary()
+        ]);
+        return;
+    }
+
+    await loadWorkerAttendanceSummary();
+}
+
+async function loadUserCount() {
+    try {
+        const response = await authenticatedFetch(API_CONFIG.endpoints.users);
+        if (!response) return;
+
+        const result = await readJsonSafely(response);
+        if (!response.ok) throw new Error();
+
+        const users = Array.isArray(result?.data) ? result.data : [];
+        setText("registeredUsersCount", String(users.length));
+    } catch {
+        setText("registeredUsersCount", "--");
+    }
+}
+
+async function loadAdminAttendanceSummary() {
+    const today = getPeruIsoDate();
+
+    try {
+        const response = await authenticatedFetch(
+            `/Attendance?startDate=${today}&endDate=${today}`
+        );
+        if (!response) return;
+
+        const result = await readJsonSafely(response);
+        if (!response.ok) throw new Error();
+
+        const records = Array.isArray(result?.data) ? result.data : [];
+        const openRecords = records.filter(record => record.status === "Open");
+
+        setText("todayAttendancesCount", String(records.length));
+        setText("openAttendancesCount", String(openRecords.length));
+    } catch {
+        setText("todayAttendancesCount", "--");
+        setText("openAttendancesCount", "--");
+    }
+}
+
+async function loadWorkerAttendanceSummary() {
+    try {
+        const response = await authenticatedFetch("/Attendance/today");
+        if (!response) return;
+
+        const result = await readJsonSafely(response);
+        if (!response.ok) {
+            throw new Error(result?.message || "No se pudo consultar la jornada.");
+        }
+
+        const data = result?.data;
+        const record = data?.record;
+
+        let statusText = "Pendiente de entrada";
+        let statusClass = "pending-value";
+
+        if (data?.hasEntry && !data?.hasExit) {
+            statusText = "Jornada iniciada";
+            statusClass = "open-value";
+        } else if (data?.hasEntry && data?.hasExit) {
+            statusText = "Completada";
+            statusClass = "completed-value";
+        }
+
+        const statusElement = document.getElementById("workerAttendanceStatus");
+        if (statusElement) {
+            statusElement.textContent = statusText;
+            statusElement.classList.remove("pending-value", "open-value", "completed-value");
+            statusElement.classList.add(statusClass);
+        }
+
+        setText("workerEntryTime", formatPeruTime(record?.entryTime));
+        setText("workerExitTime", formatPeruTime(record?.exitTime));
+    } catch {
+        setText("workerAttendanceStatus", "No disponible");
+        setText("workerEntryTime", "--:--:--");
+        setText("workerExitTime", "--:--:--");
+    }
+}
+
 function configureNavigation() {
     const sidebar = document.getElementById("sidebar");
     const overlay = document.getElementById("sidebarOverlay");
     const menuButton = document.getElementById("menuButton");
-
-    if (!sidebar || !overlay || !menuButton) {
-        return;
-    }
+    if (!sidebar || !overlay || !menuButton) return;
 
     const setSidebarState = isOpen => {
         sidebar.classList.toggle("open", isOpen);
@@ -73,19 +220,14 @@ function configureNavigation() {
     overlay.addEventListener("click", () => setSidebarState(false));
 
     window.addEventListener("resize", () => {
-        if (window.innerWidth > 920) {
-            setSidebarState(false);
-        }
+        if (window.innerWidth > 920) setSidebarState(false);
     });
 }
 
 function configureProfileMenu() {
     const profileButton = document.getElementById("profileButton");
     const profileDropdown = document.getElementById("profileDropdown");
-
-    if (!profileButton || !profileDropdown) {
-        return;
-    }
+    if (!profileButton || !profileDropdown) return;
 
     const closeDropdown = () => {
         profileDropdown.classList.add("hidden");
@@ -99,22 +241,16 @@ function configureProfileMenu() {
         profileButton.setAttribute("aria-expanded", String(willOpen));
     });
 
-    profileDropdown.addEventListener("click", event => {
-        event.stopPropagation();
-    });
-
+    profileDropdown.addEventListener("click", event => event.stopPropagation());
     document.addEventListener("click", closeDropdown);
     document.addEventListener("keydown", event => {
-        if (event.key === "Escape") {
-            closeDropdown();
-        }
+        if (event.key === "Escape") closeDropdown();
     });
 }
 
 function configureLogoutButtons() {
     ["logoutButton", "sidebarLogoutButton"].forEach(id => {
-        const button = document.getElementById(id);
-        button?.addEventListener("click", logout);
+        document.getElementById(id)?.addEventListener("click", logout);
     });
 }
 
@@ -123,6 +259,7 @@ function startClock() {
         const now = new Date();
 
         const dateText = new Intl.DateTimeFormat("es-PE", {
+            timeZone: PERU_TIME_ZONE,
             weekday: "long",
             day: "2-digit",
             month: "long",
@@ -130,6 +267,7 @@ function startClock() {
         }).format(now);
 
         const timeText = new Intl.DateTimeFormat("es-PE", {
+            timeZone: PERU_TIME_ZONE,
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit",
@@ -150,66 +288,62 @@ async function verifySystemStatus() {
 
     try {
         const response = await fetch(`${API_CONFIG.baseUrl}/Health`);
-
-        if (!response.ok) {
-            throw new Error("El servicio no respondió correctamente.");
-        }
+        if (!response.ok) throw new Error();
 
         const result = await response.json();
         const databaseConnected =
             result.database === "Connected" || result.database === true;
 
-        setStatus(apiDot, "apiStatusText", true, "Servicio disponible");
-        setStatus(
+        setSystemStatus(apiDot, "apiStatusText", true, "Servicio disponible");
+        setSystemStatus(
             databaseDot,
             "databaseStatusText",
             databaseConnected,
             databaseConnected ? "Conexión establecida" : "Sin conexión"
         );
     } catch {
-        setStatus(apiDot, "apiStatusText", false, "Servicio no disponible");
-        setStatus(databaseDot, "databaseStatusText", false, "No verificada");
+        setSystemStatus(apiDot, "apiStatusText", false, "Servicio no disponible");
+        setSystemStatus(databaseDot, "databaseStatusText", false, "No verificada");
     }
 }
 
-async function loadUserCount(role) {
-    const countElement = document.getElementById("registeredUsersCount");
+function getPeruIsoDate() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: PERU_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }).formatToParts(new Date());
 
-    if (!countElement) {
-        return;
-    }
+    const values = Object.fromEntries(
+        parts
+            .filter(part => part.type !== "literal")
+            .map(part => [part.type, part.value])
+    );
 
-    if (role !== "Admin") {
-        countElement.textContent = "N/A";
-        return;
-    }
-
-    try {
-        const response = await authenticatedFetch(API_CONFIG.endpoints.users);
-
-        if (!response) {
-            return;
-        }
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result?.message || "No se pudieron obtener los usuarios.");
-        }
-
-        const users = Array.isArray(result?.data) ? result.data : [];
-        countElement.textContent = String(users.length);
-    } catch {
-        countElement.textContent = "--";
-    }
+    return `${values.year}-${values.month}-${values.day}`;
 }
 
-function setStatus(dot, textId, isOnline, text) {
+function formatPeruTime(value) {
+    if (!value) return "Sin registrar";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Sin registrar";
+
+    return new Intl.DateTimeFormat("es-PE", {
+        timeZone: PERU_TIME_ZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+    }).format(date);
+}
+
+function setSystemStatus(dot, textId, isOnline, text) {
     if (dot) {
         dot.classList.remove("checking", "online", "offline");
         dot.classList.add(isOnline ? "online" : "offline");
     }
-
     setText(textId, text);
 }
 
@@ -223,8 +357,13 @@ function capitalizeFirstLetter(text) {
 
 function setText(id, value) {
     const element = document.getElementById(id);
+    if (element) element.textContent = value;
+}
 
-    if (element) {
-        element.textContent = value;
+async function readJsonSafely(response) {
+    try {
+        return await response.json();
+    } catch {
+        return null;
     }
 }
